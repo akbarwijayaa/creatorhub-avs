@@ -8,7 +8,7 @@ dotenv.config();
 const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
 const wallet = new ethers.Wallet(process.env.PRIVATE_KEY!, provider);
 /// TODO: Hack
-let chainId = 31337;
+let chainId = 17000;
 
 const avsDeploymentData = JSON.parse(fs.readFileSync(path.resolve(__dirname, `../contracts/deployments/creator-hub/${chainId}.json`), 'utf8'));
 const creatorHubServiceManagerAddress = avsDeploymentData.addresses.creatorHubServiceManager;
@@ -39,7 +39,7 @@ function startCreatingTasks() {
     const channelID = 'UCyNwHRGW_rgH5-PJ_mIbKTQ';
     console.log(`Creating new task with channelID: ${channelID}`);
     createNewTask(channelID);
-  }, 15000);
+  }, 24000);
 }
 
 // Start the process
