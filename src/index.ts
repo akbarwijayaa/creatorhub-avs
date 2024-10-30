@@ -232,34 +232,58 @@ const registerOperator = async () => {
 const monitorNewTasks = async () => {
 
     creatorHubServiceManager.on("NewCreatorTaskCreated", async (taskIndex: number, task: any) => {
-        console.log(`New task detected: Channel ID : ${task.channelID}`);
+        try {
+            console.log(`New task detected: Channel ID : ${task.channelID}`);
 
-        // zkFetch
-        const channelProof = await getZkFetchProof(task.channelID);
-        const { proofData, channelIdProof, tokenURI } = channelProof;
-        
-        let channelIDHash: string;
-        if (channelIdProof == task.channelID) {
-            channelIDHash = task.channelID;
-        } else {
-            channelIDHash = '0000000000';
-        }
-        console.log('channelIDHash : ', channelIDHash)
-        console.log('proofData : ', proofData)
-        
-        await signAndRespondToTask(taskIndex, task.taskCreatedBlock, channelIDHash, task.accountAddress, proofData, tokenURI);
+            // zkFetch
+            const channelProof = await getZkFetchProof(task.channelID);
+            const { proofData, channelIdProof, tokenURI } = channelProof;
+            
+            let channelIDHash: string;
+            if (channelIdProof == task.channelID) {
+                channelIDHash = task.channelID;
+            } else {
+                channelIDHash = '0000000000';
+            }
+            console.log('channelIDHash : ', channelIDHash)
+            console.log('proofData : ', proofData)
+            
+            await signAndRespondToTask(taskIndex, task.taskCreatedBlock, channelIDHash, task.accountAddress, proofData, tokenURI);
+        }catch (error) {
+            console.error(`Error processing task ${taskIndex}:`, error);
+    }
     });
 
     console.log("Monitoring for new tasks...");
 };
-
 const main = async () => {
-    await registerOperator();
-    monitorNewTasks().catch((error) => {
-        console.error("Error monitoring tasks:", error);
-    });
-};
+    while (true) {
+      try {
+        await registerOperator();
+        await monitorNewTasks();
+        
+        // Keep the process alive
+        await new Promise(() => {});
+      } catch (error) {
+        console.error("Error in main loop:", error);
+        // Wait before retrying
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        console.log("Restarting main process...");
+      }
+    }
+  };
+  
+process.on('uncaughtException', (error) => {
+console.error('Uncaught exception:', error);
+// Keep running
+});
+
+process.on('unhandledRejection', (error) => {
+console.error('Unhandled rejection:', error);
+// Keep running
+});
 
 main().catch((error) => {
-    console.error("Error in main function:", error);
+console.error("Critical error in main function:", error);
+process.exit(1);
 });
