@@ -1,2 +1,4 @@
 .env
 src/account.json
+node_modules/
+yarn.lock
