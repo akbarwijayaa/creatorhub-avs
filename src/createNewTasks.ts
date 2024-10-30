@@ -10,32 +10,24 @@ const wallet = new ethers.Wallet(process.env.PRIVATE_KEY!, provider);
 /// TODO: Hack
 let chainId = 31337;
 
-const avsDeploymentData = JSON.parse(fs.readFileSync(path.resolve(__dirname, `../contracts/deployments/hello-world/${chainId}.json`), 'utf8'));
-const helloWorldServiceManagerAddress = avsDeploymentData.addresses.creatorHubServiceManager;
-const helloWorldServiceManagerABI = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../abis/CreatorHubServiceManager.json'), 'utf8'));
+const avsDeploymentData = JSON.parse(fs.readFileSync(path.resolve(__dirname, `../contracts/deployments/creator-hub/${chainId}.json`), 'utf8'));
+const creatorHubServiceManagerAddress = avsDeploymentData.addresses.creatorHubServiceManager;
+const creatorHubServiceManagerABI = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../abis/CreatorHubServiceManager.json'), 'utf8'));
 // Initialize contract objects from ABIs
-const helloWorldServiceManager = new ethers.Contract(helloWorldServiceManagerAddress, helloWorldServiceManagerABI, wallet);
+const creatorHubServiceManager = new ethers.Contract(creatorHubServiceManagerAddress, creatorHubServiceManagerABI, wallet);
 
-
-// Function to generate random names
-function generateRandomName(): string {
-    // const adjectives = ['Quick', 'Lazy', 'Sleepy', 'Noisy', 'Hungry'];
-    // const nouns = ['Fox', 'Dog', 'Cat', 'Mouse', 'Bear'];
-    // const adjective = adjectives[Math.floor(Math.random() * adjectives.length)];
-    // const noun = nouns[Math.floor(Math.random() * nouns.length)];
-    const randomName = 'UCyNwHRGW_rgH5-PJ_mIbKTQ';
-    return randomName;
-  }
 
 async function createNewTask(taskName: string) {
   try {
     // Send a transaction to the createNewTask function
-    const tx = await helloWorldServiceManager.createTaskMintAccount(taskName);
+    const tx = await creatorHubServiceManager.createTaskMintAccount(taskName);
     
     // Wait for the transaction to be mined
     const receipt = await tx.wait();
     
     console.log(`Transaction successful with hash: ${receipt.hash}`);
+
+    
   } catch (error) {
     console.error('Error sending transaction:', error);
   }
@@ -43,11 +35,10 @@ async function createNewTask(taskName: string) {
 
 // Function to create a new task with a random name every 15 seconds
 function startCreatingTasks() {
-  setInterval(() => {
-    const randomName = generateRandomName();
-    console.log(`Creating new task with name: ${randomName}`);
-    createNewTask(randomName);
-  }, 24000);
+
+  const channelID = 'UCyNwHRGW_rgH5-PJ_mIbKTQ';
+    console.log(`Creating new task with channelID: ${channelID}`);
+    createNewTask(channelID);
 }
 
 // Start the process

@@ -33,14 +33,14 @@ contract CreatorHubServiceManager is ERC721URIStorage, OwnableUpgradeable, ECDSA
     using ECDSAUpgradeable for bytes32;
 
     uint32 public latestTaskNum;
-    address public constant ownerAddress = 0x9443CF20fc0C1578c12792D8E80cA92DD4CEcc24;
+    address public constant OWNER_ADDRESS = 0x9443CF20fc0C1578c12792D8E80cA92DD4CEcc24;
 
     event Minted(address indexed to, uint256 indexed tokenId, string uri);
     event Burned(address indexed to, uint256 indexed tokenId);
 
     mapping(uint32 => bytes32) public allTaskHashes;
     mapping(address => mapping(uint32 => bytes)) public allTaskResponses;
-    mapping(address => string) public userChannelID;
+    mapping(uint256 => bool) public userChannelID;
 
     modifier onlyOperator() {
         require(
@@ -70,11 +70,10 @@ contract CreatorHubServiceManager is ERC721URIStorage, OwnableUpgradeable, ECDSA
 
     /* FUNCTIONS */
     // NOTE: this function creates new task, assigns it a taskId
-    // creatorhub start here
 
     function createTaskMintAccount(string memory channelID) external returns (CreatorTask memory) {
-        // userChannelID[msg.sender] = channelID;
         CreatorTask memory creatorTask;
+        creatorTask.accountAddress = msg.sender;
         creatorTask.channelID = channelID;
         creatorTask.taskCreatedBlock = uint32(block.number);
 
@@ -104,7 +103,7 @@ contract CreatorHubServiceManager is ERC721URIStorage, OwnableUpgradeable, ECDSA
             revert();
         }
 
-        mintAccount(proof, tokenURI);
+        mintAccount(proof, tokenURI, task.accountAddress);
 
         // updating the storage with task responses
         allTaskResponses[msg.sender][referenceTaskIndex] = signature;
@@ -113,34 +112,27 @@ contract CreatorHubServiceManager is ERC721URIStorage, OwnableUpgradeable, ECDSA
         emit CreatorTaskResponded(referenceTaskIndex, task, msg.sender);
     }
 
-    function mintAccount(Reclaim.Proof memory proof, string memory tokenURI) public {
+    function mintAccount(Reclaim.Proof memory proof, string memory tokenURI, address to) public {
 
-        require(proof.signedClaim.claim.owner == ownerAddress, "Owner is not valid!");
+        require(proof.signedClaim.claim.owner == OWNER_ADDRESS, "Owner is not valid!");
 
         string memory videoId = Claims.extractFieldFromContext(proof.claimInfo.context, '"channelId":"');
         uint256 tokenId = uint256(keccak256(abi.encodePacked(videoId)));
         
-        processAccount(tokenId, tokenURI);
-
-        emit Minted(msg.sender, tokenId, tokenURI);
-    }
-
-    function checkExist(uint256 tokenId) public view returns (bool) {
-        return ownerOf(tokenId) != address(0);
-    }
-
-    function processAccount(uint256 tokenId, string memory tokenURI) public {
-        if (checkExist(tokenId)) {
-            require(ownerOf(tokenId) == msg.sender, "Already minted by another address!");
+        if (userChannelID[tokenId]){
+            require(ownerOf(tokenId) == to, "Already minted by another address!");
 
             _burn(tokenId);
-            emit Burned(msg.sender, tokenId);
         }
-        mintNFT(tokenId, tokenURI);
-    }
 
-    function mintNFT(uint256 tokenId, string memory tokenURI) public {
-        _safeMint(msg.sender, tokenId);
+        mintNFT(to, tokenId, tokenURI);
+        userChannelID[tokenId] = true;
+
+        emit Minted(to, tokenId, tokenURI);
+    }
+    
+    function mintNFT(address to, uint256 tokenId, string memory tokenURI) public {
+        _safeMint(to, tokenId);
         _setTokenURI(tokenId, tokenURI);
     }
 

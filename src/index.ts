@@ -22,7 +22,7 @@ const wallet = new ethers.Wallet(process.env.PRIVATE_KEY!, provider);
 /// TODO: Hack
 let chainId = 31337;
 
-const avsDeploymentData = JSON.parse(fs.readFileSync(path.resolve(__dirname, `../contracts/deployments/hello-world/${chainId}.json`), 'utf8'));
+const avsDeploymentData = JSON.parse(fs.readFileSync(path.resolve(__dirname, `../contracts/deployments/creator-hub/${chainId}.json`), 'utf8'));
 // Load core deployment data
 const coreDeploymentData = JSON.parse(fs.readFileSync(path.resolve(__dirname, `../contracts/deployments/core/${chainId}.json`), 'utf8'));
 
@@ -59,17 +59,6 @@ const reclaimClient = new ReclaimClient(
 const keyFilePath = path.join(__dirname, 'account.json');
 const scopes = ['https://www.googleapis.com/auth/youtube.force-ssl'];
 
-async function fetchYouTubeData(access_token: string) {
-    const youtubeResponse = await axios.get(
-      "https://www.googleapis.com/youtube/v3/channels",
-      {
-        params: { part: "snippet,contentDetails,statistics", mine: true },
-        headers: { Authorization: `Bearer ${access_token}` },
-      }
-    );
-    return youtubeResponse.data;
-}
-
 async function getTierYoutube(subscriberCount: number) {
     const tiers = [
         { min: 10_000_000, name: 'Platinum', image: 'platinum.jpg' },
@@ -84,29 +73,6 @@ async function getTierYoutube(subscriberCount: number) {
     return { tier, imageURL };
 }
 
-
-async function processMetadata(access_token: string, proofIdentifier: string | number) {
-    const channelInfo = await fetchYouTubeData(access_token);
-    const channel = channelInfo.items[0];
-    const channelSubscriber = channel.statistics.subscriberCount;
-    const tierData = await getTierYoutube(channelSubscriber);
-    const { tier, imageURL } = tierData;
-
-    const metadata = {
-        name: `Creator Ownership NFT`,
-        description: `Proof of Owner for YouTube account by CreatorHub`,
-        image: imageURL,
-        attributes: [
-          { trait_type: "Proof", value: proofIdentifier },
-          { trait_type: "Tier", value: tier },
-        ],
-      };
-    
-    const tokenURI = await storage.upload(metadata);
-
-    return tokenURI;
-}
-
 const getZkFetchProof = async (channelId: string) => {
     try {
         const auth = new google.auth.GoogleAuth({
@@ -117,7 +83,6 @@ const getZkFetchProof = async (channelId: string) => {
         const authClient = await auth.getClient();
         const accessToken = await authClient.getAccessToken();
         
-        // const channelId = 'UCyNwHRGW_rgH5-PJ_mIbKTQ';
         const proof =  await reclaimClient.zkFetch(
           `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${channelId}`,
           {
@@ -152,8 +117,30 @@ const getZkFetchProof = async (channelId: string) => {
         const context = JSON.parse(proofData.claimInfo.context);
         const channelIdProof = context.extractedParameters.channelId;
         const proofIdentifier = proofData.signedClaim.claim.identifier;
+        
+        const youtubeResponse = await axios.get(
+            `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${channelId}`,
+            {
+              headers: { Authorization: `Bearer ${accessToken?.token}` },
+            }
+        );
+        const channel = youtubeResponse.data.items[0];
+        
+        const channelSubscriber = channel.statistics.subscriberCount;
+        const tierData = await getTierYoutube(channelSubscriber);
+        const { tier, imageURL } = tierData;
 
-        const tokenURI = await processMetadata(accessToken?.token!, proofIdentifier);
+        const metadata = {
+            name: `Creator Ownership NFT`,
+            description: `Proof of Owner for YouTube account by CreatorHub`,
+            image: imageURL,
+            attributes: [
+            { trait_type: "Proof", value: proofIdentifier },
+            { trait_type: "Tier", value: tier },
+            ],
+        };
+        
+        const tokenURI = await storage.upload(metadata);
 
         return {proofData: proofData, channelIdProof: channelIdProof, tokenURI: tokenURI};
 
@@ -161,8 +148,7 @@ const getZkFetchProof = async (channelId: string) => {
         console.error('Error generating access token:', error);
         throw error;
     }
-};
-const signAndRespondToTask = async (taskIndex: number, taskCreatedBlock: number, taskChannelID: string, taskChannelIDProof: object, taskTokenURI: string) => {
+};const signAndRespondToTask = async (taskIndex: number, taskCreatedBlock: number, taskChannelID: string, taskaccountAddress: string, taskChannelIDProof: object, taskTokenURI: string) => {
     const message = `Hello, ${taskChannelID}`;
     const messageHash = ethers.solidityPackedKeccak256(["string"], [message]);
     const messageBytes = ethers.getBytes(messageHash);
@@ -178,14 +164,15 @@ const signAndRespondToTask = async (taskIndex: number, taskCreatedBlock: number,
     );
     
     const tx = await creatorHubServiceManager.respondToCreateMintAccountTask(
-        { channelID: taskChannelID, taskCreatedBlock: taskCreatedBlock },
+        { accountAddress: taskaccountAddress, channelID: taskChannelID, taskCreatedBlock: taskCreatedBlock },
         taskIndex,
         signedTask,
         taskChannelIDProof,
         taskTokenURI
     );
     await tx.wait();
-    console.log(`Responded to task.`);
+    console.log(`Successfuly validate and Minting NFT`);
+    console.log(`Transaction Hash : `, tx.hash!);
 };
 
 const registerOperator = async () => {
@@ -234,7 +221,6 @@ const registerOperator = async () => {
 
     
     // Register Operator to AVS
-    // Per release here: https://github.com/Layr-Labs/eigenlayer-middleware/blob/v0.2.1-mainnet-rewards/src/unaudited/ECDSAStakeRegistry.sol#L49
     const tx2 = await ecdsaRegistryContract.registerOperatorWithSignature(
         operatorSignatureWithSaltAndExpiry,
         wallet.address
@@ -244,11 +230,9 @@ const registerOperator = async () => {
 };
 
 const monitorNewTasks = async () => {
-    //console.log(`Creating new task "EigenWorld"`);
-    //await creatorHubServiceManager.createNewTask("EigenWorld");
 
     creatorHubServiceManager.on("NewCreatorTaskCreated", async (taskIndex: number, task: any) => {
-        console.log(`New task detected: Hello, ${task.channelID}`);
+        console.log(`New task detected: Channel ID : ${task.channelID}`);
 
         // zkFetch
         const channelProof = await getZkFetchProof(task.channelID);
@@ -263,7 +247,7 @@ const monitorNewTasks = async () => {
         console.log('channelIDHash : ', channelIDHash)
         console.log('proofData : ', proofData)
         
-        await signAndRespondToTask(taskIndex, task.taskCreatedBlock, channelIDHash, proofData, tokenURI);
+        await signAndRespondToTask(taskIndex, task.taskCreatedBlock, channelIDHash, task.accountAddress, proofData, tokenURI);
     });
 
     console.log("Monitoring for new tasks...");

@@ -88,7 +88,7 @@ library CreatorHubDeploymentLib {
     function writeDeploymentJson(
         DeploymentData memory data
     ) internal {
-        writeDeploymentJson("deployments/hello-world/", block.chainid, data);
+        writeDeploymentJson("deployments/creator-hub/", block.chainid, data);
     }
 
     function writeDeploymentJson(

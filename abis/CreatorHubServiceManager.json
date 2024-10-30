@@ -27,6 +27,19 @@
   },
   {
     "type": "function",
+    "name": "OWNER_ADDRESS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "allTaskHashes",
     "inputs": [
       {
@@ -120,25 +133,6 @@
   },
   {
     "type": "function",
-    "name": "checkExist",
-    "inputs": [
-      {
-        "name": "tokenId",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "createAVSRewardsSubmission",
     "inputs": [
       {
@@ -205,6 +199,11 @@
         "type": "tuple",
         "internalType": "struct ICreatorHubServiceManager.CreatorTask",
         "components": [
+          {
+            "name": "accountAddress",
+            "type": "address",
+            "internalType": "address"
+          },
           {
             "name": "channelID",
             "type": "string",
@@ -397,6 +396,11 @@
         "name": "tokenURI",
         "type": "string",
         "internalType": "string"
+      },
+      {
+        "name": "to",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "outputs": [],
@@ -406,6 +410,11 @@
     "type": "function",
     "name": "mintNFT",
     "inputs": [
+      {
+        "name": "to",
+        "type": "address",
+        "internalType": "address"
+      },
       {
         "name": "tokenId",
         "type": "uint256",
@@ -448,19 +457,6 @@
   },
   {
     "type": "function",
-    "name": "ownerAddress",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "ownerOf",
     "inputs": [
       {
@@ -477,24 +473,6 @@
       }
     ],
     "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "processAccount",
-    "inputs": [
-      {
-        "name": "tokenId",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "tokenURI",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -547,6 +525,11 @@
         "type": "tuple",
         "internalType": "struct ICreatorHubServiceManager.CreatorTask",
         "components": [
+          {
+            "name": "accountAddress",
+            "type": "address",
+            "internalType": "address"
+          },
           {
             "name": "channelID",
             "type": "string",
@@ -860,15 +843,15 @@
     "inputs": [
       {
         "name": "",
-        "type": "address",
-        "internalType": "address"
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [
       {
         "name": "",
-        "type": "string",
-        "internalType": "string"
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "stateMutability": "view"
@@ -959,6 +942,11 @@
         "internalType": "struct ICreatorHubServiceManager.CreatorTask",
         "components": [
           {
+            "name": "accountAddress",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
             "name": "channelID",
             "type": "string",
             "internalType": "string"
@@ -1033,6 +1021,11 @@
         "indexed": false,
         "internalType": "struct ICreatorHubServiceManager.CreatorTask",
         "components": [
+          {
+            "name": "accountAddress",
+            "type": "address",
+            "internalType": "address"
+          },
           {
             "name": "channelID",
             "type": "string",

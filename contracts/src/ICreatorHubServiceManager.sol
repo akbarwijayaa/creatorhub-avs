@@ -9,6 +9,7 @@ interface ICreatorHubServiceManager {
     event CreatorTaskResponded(uint32 indexed taskIndex, CreatorTask task, address operator);
 
     struct CreatorTask{
+        address accountAddress;
         string channelID;
         uint32 taskCreatedBlock;
     }
