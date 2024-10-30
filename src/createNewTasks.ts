@@ -35,10 +35,11 @@ async function createNewTask(taskName: string) {
 
 // Function to create a new task with a random name every 15 seconds
 function startCreatingTasks() {
-
-  const channelID = 'UCyNwHRGW_rgH5-PJ_mIbKTQ';
+  setInterval(() => {
+    const channelID = 'UCyNwHRGW_rgH5-PJ_mIbKTQ';
     console.log(`Creating new task with channelID: ${channelID}`);
     createNewTask(channelID);
+  }, 15000);
 }
 
 // Start the process
