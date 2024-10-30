@@ -33,15 +33,14 @@ contract CreatorHubServiceManager is ERC721URIStorage, OwnableUpgradeable, ECDSA
     using ECDSAUpgradeable for bytes32;
 
     uint32 public latestTaskNum;
+    address public constant ownerAddress = 0x9443CF20fc0C1578c12792D8E80cA92DD4CEcc24;
 
-    // mapping of task indices to all tasks hashes
-    // when a task is created, task hash is stored here,
-    // and responses need to pass the actual task,
-    // which is hashed onchain and checked against this mapping
+    event Minted(address indexed to, uint256 indexed tokenId, string uri);
+    event Burned(address indexed to, uint256 indexed tokenId);
+
     mapping(uint32 => bytes32) public allTaskHashes;
-
-    // mapping of task indices to hash of abi.encode(taskResponse, taskResponseMetadata)
     mapping(address => mapping(uint32 => bytes)) public allTaskResponses;
+    mapping(address => string) public userChannelID;
 
     modifier onlyOperator() {
         require(
@@ -72,8 +71,6 @@ contract CreatorHubServiceManager is ERC721URIStorage, OwnableUpgradeable, ECDSA
     /* FUNCTIONS */
     // NOTE: this function creates new task, assigns it a taskId
     // creatorhub start here
-
-    mapping(address => string) public userChannelID;
 
     function createTaskMintAccount(string memory channelID) external returns (CreatorTask memory) {
         // userChannelID[msg.sender] = channelID;
@@ -116,21 +113,14 @@ contract CreatorHubServiceManager is ERC721URIStorage, OwnableUpgradeable, ECDSA
         emit CreatorTaskResponded(referenceTaskIndex, task, msg.sender);
     }
 
-    address public constant ownerAddress = 0x9443CF20fc0C1578c12792D8E80cA92DD4CEcc24;
-
-    event Minted(address indexed to, uint256 indexed tokenId, string uri);
-    event Burned(address indexed to, uint256 indexed tokenId);
-
     function mintAccount(Reclaim.Proof memory proof, string memory tokenURI) public {
 
         require(proof.signedClaim.claim.owner == ownerAddress, "Owner is not valid!");
 
         string memory videoId = Claims.extractFieldFromContext(proof.claimInfo.context, '"channelId":"');
         uint256 tokenId = uint256(keccak256(abi.encodePacked(videoId)));
-
-        _safeMint(msg.sender, tokenId);
         
-        // processAccount(tokenId, tokenURI);
+        processAccount(tokenId, tokenURI);
 
         emit Minted(msg.sender, tokenId, tokenURI);
     }

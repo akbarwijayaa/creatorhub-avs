@@ -5,6 +5,8 @@ import { google } from 'googleapis';
 import { ReclaimClient } from "@reclaimprotocol/zk-fetch";
 import { Reclaim } from "@reclaimprotocol/js-sdk";
 
+import { ThirdwebStorage } from "@thirdweb-dev/storage";
+
 const fs = require('fs');
 const path = require('path');
 dotenv.config();
@@ -27,22 +29,27 @@ const coreDeploymentData = JSON.parse(fs.readFileSync(path.resolve(__dirname, `.
 
 const delegationManagerAddress = coreDeploymentData.addresses.delegation; // todo: reminder to fix the naming of this contract in the deployment file, change to delegationManager
 const avsDirectoryAddress = coreDeploymentData.addresses.avsDirectory;
-const helloWorldServiceManagerAddress = avsDeploymentData.addresses.creatorHubServiceManager;
+const creatorHubServiceManagerAddress = avsDeploymentData.addresses.creatorHubServiceManager;
 const ecdsaStakeRegistryAddress = avsDeploymentData.addresses.stakeRegistry;
-
 
 
 // Load ABIs
 const delegationManagerABI = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../abis/IDelegationManager.json'), 'utf8'));
 const ecdsaRegistryABI = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../abis/ECDSAStakeRegistry.json'), 'utf8'));
-const helloWorldServiceManagerABI = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../abis/CreatorHubServiceManager.json'), 'utf8'));
+const creatorHubServiceManagerABI = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../abis/CreatorHubServiceManager.json'), 'utf8'));
 const avsDirectoryABI = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../abis/IAVSDirectory.json'), 'utf8'));
+
 
 // Initialize contract objects from ABIs
 const delegationManager = new ethers.Contract(delegationManagerAddress, delegationManagerABI, wallet);
-const helloWorldServiceManager = new ethers.Contract(helloWorldServiceManagerAddress, helloWorldServiceManagerABI, wallet);
+const creatorHubServiceManager = new ethers.Contract(creatorHubServiceManagerAddress, creatorHubServiceManagerABI, wallet);
 const ecdsaRegistryContract = new ethers.Contract(ecdsaStakeRegistryAddress, ecdsaRegistryABI, wallet);
 const avsDirectory = new ethers.Contract(avsDirectoryAddress, avsDirectoryABI, wallet);
+
+const secretKey = process.env.THIRDWEB_API_KEY;
+const storage = new ThirdwebStorage({
+    secretKey: secretKey,
+});
 
 const reclaimClient = new ReclaimClient(
     process.env.APP_ID!,
@@ -63,7 +70,44 @@ async function fetchYouTubeData(access_token: string) {
     return youtubeResponse.data;
 }
 
-const getZkFetchProof = async () => {
+async function getTierYoutube(subscriberCount: number) {
+    const tiers = [
+        { min: 10_000_000, name: 'Platinum', image: 'platinum.jpg' },
+        { min: 1_000_000, name: 'Gold', image: 'gold.jpg' },
+        { min: 10_000, name: 'Silver', image: 'silver.jpg' },
+        { min: 0, name: 'Rookie', image: 'rookie.jpg' },
+    ];
+
+    const { name: tier, image } = tiers.find(({ min }) => subscriberCount >= min) || tiers[tiers.length - 1];
+    const imageURL = `${process.env.PUBLIC_IMAGE_NFT}/${image}`;
+
+    return { tier, imageURL };
+}
+
+
+async function processMetadata(access_token: string, proofIdentifier: string | number) {
+    const channelInfo = await fetchYouTubeData(access_token);
+    const channel = channelInfo.items[0];
+    const channelSubscriber = channel.statistics.subscriberCount;
+    const tierData = await getTierYoutube(channelSubscriber);
+    const { tier, imageURL } = tierData;
+
+    const metadata = {
+        name: `Creator Ownership NFT`,
+        description: `Proof of Owner for YouTube account by CreatorHub`,
+        image: imageURL,
+        attributes: [
+          { trait_type: "Proof", value: proofIdentifier },
+          { trait_type: "Tier", value: tier },
+        ],
+      };
+    
+    const tokenURI = await storage.upload(metadata);
+
+    return tokenURI;
+}
+
+const getZkFetchProof = async (channelId: string) => {
     try {
         const auth = new google.auth.GoogleAuth({
             keyFile: keyFilePath,
@@ -73,7 +117,7 @@ const getZkFetchProof = async () => {
         const authClient = await auth.getClient();
         const accessToken = await authClient.getAccessToken();
         
-        const channelId = 'UCyNwHRGW_rgH5-PJ_mIbKTQ';
+        // const channelId = 'UCyNwHRGW_rgH5-PJ_mIbKTQ';
         const proof =  await reclaimClient.zkFetch(
           `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${channelId}`,
           {
@@ -104,22 +148,20 @@ const getZkFetchProof = async () => {
 
         // Transform proof for on-chain purposes
         const proofData = await Reclaim.transformForOnchain(proof);
-            // console.log('Access Token:', accessToken?.token);
+    
         const context = JSON.parse(proofData.claimInfo.context);
         const channelIdProof = context.extractedParameters.channelId;
-        return {proofData: proofData, channelIdProof: channelIdProof};
+        const proofIdentifier = proofData.signedClaim.claim.identifier;
+
+        const tokenURI = await processMetadata(accessToken?.token!, proofIdentifier);
+
+        return {proofData: proofData, channelIdProof: channelIdProof, tokenURI: tokenURI};
+
     } catch (error) {
         console.error('Error generating access token:', error);
         throw error;
     }
 };
-
-
-// Run the function
-// getAccessToken()
-//     .then((channelIdProof) => console.log('Token generated successfully:', channelIdProof))
-//     .catch((error) => console.error('Error:', error));
-
 const signAndRespondToTask = async (taskIndex: number, taskCreatedBlock: number, taskChannelID: string, taskChannelIDProof: object, taskTokenURI: string) => {
     const message = `Hello, ${taskChannelID}`;
     const messageHash = ethers.solidityPackedKeccak256(["string"], [message]);
@@ -134,8 +176,8 @@ const signAndRespondToTask = async (taskIndex: number, taskCreatedBlock: number,
         ["address[]", "bytes[]", "uint32"],
         [operators, signatures, ethers.toBigInt(await provider.getBlockNumber()-1)]
     );
-    console.log('Test================================');
-    const tx = await helloWorldServiceManager.respondToCreateMintAccountTask(
+    
+    const tx = await creatorHubServiceManager.respondToCreateMintAccountTask(
         { channelID: taskChannelID, taskCreatedBlock: taskCreatedBlock },
         taskIndex,
         signedTask,
@@ -174,7 +216,7 @@ const registerOperator = async () => {
     // Calculate the digest hash, which is a unique value representing the operator, avs, unique value (salt) and expiration date.
     const operatorDigestHash = await avsDirectory.calculateOperatorAVSRegistrationDigestHash(
         wallet.address, 
-        await helloWorldServiceManager.getAddress(), 
+        await creatorHubServiceManager.getAddress(), 
         salt, 
         expiry
     );
@@ -203,16 +245,14 @@ const registerOperator = async () => {
 
 const monitorNewTasks = async () => {
     //console.log(`Creating new task "EigenWorld"`);
-    //await helloWorldServiceManager.createNewTask("EigenWorld");
+    //await creatorHubServiceManager.createNewTask("EigenWorld");
 
-    helloWorldServiceManager.on("NewCreatorTaskCreated", async (taskIndex: number, task: any) => {
+    creatorHubServiceManager.on("NewCreatorTaskCreated", async (taskIndex: number, task: any) => {
         console.log(`New task detected: Hello, ${task.channelID}`);
-        const tokenURI = 'http://localhost:3000/api/dummy-uri';
+
         // zkFetch
-        // write code here
-        // const channelIdProof = getZkFetchProof()
-        const channelProof = await getZkFetchProof();
-        const { proofData, channelIdProof } = channelProof;
+        const channelProof = await getZkFetchProof(task.channelID);
+        const { proofData, channelIdProof, tokenURI } = channelProof;
         
         let channelIDHash: string;
         if (channelIdProof == task.channelID) {
