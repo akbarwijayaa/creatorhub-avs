@@ -1,5 +1,6 @@
 import { ethers } from "ethers";
 import * as dotenv from "dotenv";
+import axios from "axios";
 import { google } from 'googleapis';
 import { ReclaimClient } from "@reclaimprotocol/zk-fetch";
 import { Reclaim } from "@reclaimprotocol/js-sdk";
@@ -26,7 +27,7 @@ const coreDeploymentData = JSON.parse(fs.readFileSync(path.resolve(__dirname, `.
 
 const delegationManagerAddress = coreDeploymentData.addresses.delegation; // todo: reminder to fix the naming of this contract in the deployment file, change to delegationManager
 const avsDirectoryAddress = coreDeploymentData.addresses.avsDirectory;
-const helloWorldServiceManagerAddress = avsDeploymentData.addresses.helloWorldServiceManager;
+const helloWorldServiceManagerAddress = avsDeploymentData.addresses.creatorHubServiceManager;
 const ecdsaStakeRegistryAddress = avsDeploymentData.addresses.stakeRegistry;
 
 
@@ -34,7 +35,7 @@ const ecdsaStakeRegistryAddress = avsDeploymentData.addresses.stakeRegistry;
 // Load ABIs
 const delegationManagerABI = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../abis/IDelegationManager.json'), 'utf8'));
 const ecdsaRegistryABI = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../abis/ECDSAStakeRegistry.json'), 'utf8'));
-const helloWorldServiceManagerABI = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../abis/HelloWorldServiceManager.json'), 'utf8'));
+const helloWorldServiceManagerABI = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../abis/CreatorHubServiceManager.json'), 'utf8'));
 const avsDirectoryABI = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../abis/IAVSDirectory.json'), 'utf8'));
 
 // Initialize contract objects from ABIs
@@ -50,6 +51,17 @@ const reclaimClient = new ReclaimClient(
 
 const keyFilePath = path.join(__dirname, 'account.json');
 const scopes = ['https://www.googleapis.com/auth/youtube.force-ssl'];
+
+async function fetchYouTubeData(access_token: string) {
+    const youtubeResponse = await axios.get(
+      "https://www.googleapis.com/youtube/v3/channels",
+      {
+        params: { part: "snippet,contentDetails,statistics", mine: true },
+        headers: { Authorization: `Bearer ${access_token}` },
+      }
+    );
+    return youtubeResponse.data;
+}
 
 const getZkFetchProof = async () => {
     try {
@@ -95,7 +107,7 @@ const getZkFetchProof = async () => {
             // console.log('Access Token:', accessToken?.token);
         const context = JSON.parse(proofData.claimInfo.context);
         const channelIdProof = context.extractedParameters.channelId;
-        return channelIdProof;
+        return {proofData: proofData, channelIdProof: channelIdProof};
     } catch (error) {
         console.error('Error generating access token:', error);
         throw error;
@@ -108,7 +120,7 @@ const getZkFetchProof = async () => {
 //     .then((channelIdProof) => console.log('Token generated successfully:', channelIdProof))
 //     .catch((error) => console.error('Error:', error));
 
-const signAndRespondToTask = async (taskIndex: number, taskCreatedBlock: number, taskChannelID: string) => {
+const signAndRespondToTask = async (taskIndex: number, taskCreatedBlock: number, taskChannelID: string, taskChannelIDProof: object, taskTokenURI: string) => {
     const message = `Hello, ${taskChannelID}`;
     const messageHash = ethers.solidityPackedKeccak256(["string"], [message]);
     const messageBytes = ethers.getBytes(messageHash);
@@ -122,11 +134,13 @@ const signAndRespondToTask = async (taskIndex: number, taskCreatedBlock: number,
         ["address[]", "bytes[]", "uint32"],
         [operators, signatures, ethers.toBigInt(await provider.getBlockNumber()-1)]
     );
-
-    const tx = await helloWorldServiceManager.respondToTask(
-        { name: taskChannelID, taskCreatedBlock: taskCreatedBlock },
+    console.log('Test================================');
+    const tx = await helloWorldServiceManager.respondToCreateMintAccountTask(
+        { channelID: taskChannelID, taskCreatedBlock: taskCreatedBlock },
         taskIndex,
-        signedTask
+        signedTask,
+        taskChannelIDProof,
+        taskTokenURI
     );
     await tx.wait();
     console.log(`Responded to task.`);
@@ -193,19 +207,23 @@ const monitorNewTasks = async () => {
 
     helloWorldServiceManager.on("NewCreatorTaskCreated", async (taskIndex: number, task: any) => {
         console.log(`New task detected: Hello, ${task.channelID}`);
-
+        const tokenURI = 'http://localhost:3000/api/dummy-uri';
         // zkFetch
         // write code here
-        const channelIdProof = getZkFetchProof()
+        // const channelIdProof = getZkFetchProof()
+        const channelProof = await getZkFetchProof();
+        const { proofData, channelIdProof } = channelProof;
         
         let channelIDHash: string;
-        if (channelIdProof === task.channelID) {
+        if (channelIdProof == task.channelID) {
             channelIDHash = task.channelID;
         } else {
             channelIDHash = '0000000000';
         }
+        console.log('channelIDHash : ', channelIDHash)
+        console.log('proofData : ', proofData)
         
-        await signAndRespondToTask(taskIndex, task.taskCreatedBlock, channelIDHash);
+        await signAndRespondToTask(taskIndex, task.taskCreatedBlock, channelIDHash, proofData, tokenURI);
     });
 
     console.log("Monitoring for new tasks...");
