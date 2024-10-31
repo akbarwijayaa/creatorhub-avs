@@ -77,6 +77,14 @@ flowchart TD
 - Tier-based NFT metadata generation
 - Secure proof validation and submission
 
+## NFT Tiers
+
+The system assigns NFT tiers based on subscriber count:
+- Platinum: 10M+ subscribers
+- Gold: 1M+ subscribers
+- Silver: 10K+ subscribers
+- Rookie: 0-10K subscribers
+
 ## The node will:
 - Register as an operator in EigenLayer
 - Monitor for new validation tasks
@@ -99,13 +107,7 @@ contracts/
 │       └── 17000.json
 ```
 
-## NFT Tiers
 
-The system assigns NFT tiers based on subscriber count:
-- Platinum: 10M+ subscribers
-- Gold: 1M+ subscribers
-- Silver: 10K+ subscribers
-- Rookie: 0-10K subscribers
 
 ## Install
 
