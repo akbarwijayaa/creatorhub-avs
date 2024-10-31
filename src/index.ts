@@ -257,33 +257,12 @@ const monitorNewTasks = async () => {
     console.log("Monitoring for new tasks...");
 };
 const main = async () => {
-    while (true) {
-      try {
-        await registerOperator();
-        await monitorNewTasks();
-        
-        // Keep the process alive
-        await new Promise(() => {});
-      } catch (error) {
-        console.error("Error in main loop:", error);
-        // Wait before retrying
-        await new Promise(resolve => setTimeout(resolve, 5000));
-        console.log("Restarting main process...");
-      }
-    }
-  };
-  
-process.on('uncaughtException', (error) => {
-console.error('Uncaught exception:', error);
-// Keep running
-});
-
-process.on('unhandledRejection', (error) => {
-console.error('Unhandled rejection:', error);
-// Keep running
-});
+    await registerOperator();
+    monitorNewTasks().catch((error) => {
+        console.error("Error monitoring tasks:", error);
+    });
+};
 
 main().catch((error) => {
-console.error("Critical error in main function:", error);
-process.exit(1);
+    console.error("Error in main function:", error);
 });
