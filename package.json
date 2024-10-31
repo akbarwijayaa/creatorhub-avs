@@ -20,6 +20,7 @@
     "@reclaimprotocol/zk-fetch": "0.1.4",
     "@thirdweb-dev/storage": "^2.0.15",
     "@types/node": "^22.8.4",
+    "axios": "^1.7.7",
     "dotenv": "^16.4.5",
     "ethers": "^6.13.4",
     "google-auth-library": "^9.14.2",

@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.9;
 
-import {ECDSAServiceManagerBase} from
-    "@eigenlayer-middleware/src/unaudited/ECDSAServiceManagerBase.sol";
+import {ECDSAServiceManagerBase} from "@eigenlayer-middleware/src/unaudited/ECDSAServiceManagerBase.sol";
 import {ECDSAStakeRegistry} from "@eigenlayer-middleware/src/unaudited/ECDSAStakeRegistry.sol";
 import {IServiceManager} from "@eigenlayer-middleware/src/interfaces/IServiceManager.sol";
-import {ECDSAUpgradeable} from
-    "@openzeppelin-upgrades/contracts/utils/cryptography/ECDSAUpgradeable.sol";
+import {ECDSAUpgradeable} from "@openzeppelin-upgrades/contracts/utils/cryptography/ECDSAUpgradeable.sol";
 import {IERC1271Upgradeable} from "@openzeppelin-upgrades/contracts/interfaces/IERC1271Upgradeable.sol";
 import {ICreatorHubServiceManager} from "./ICreatorHubServiceManager.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
@@ -22,18 +20,22 @@ import {Reclaim} from "./Reclaim/Reclaim.sol";
 import {Claims} from "./Reclaim/Claims.sol";
 import {Addresses} from "./Reclaim/Addresses.sol";
 
-
 /**
  * @title Primary entrypoint for procuring services from HelloWorld.
  * @author Eigen Labs, Inc.
  */
 
-
-contract CreatorHubServiceManager is ERC721URIStorage, OwnableUpgradeable, ECDSAServiceManagerBase, ICreatorHubServiceManager {
+contract CreatorHubServiceManager is
+    ERC721URIStorage,
+    OwnableUpgradeable,
+    ECDSAServiceManagerBase,
+    ICreatorHubServiceManager
+{
     using ECDSAUpgradeable for bytes32;
 
     uint32 public latestTaskNum;
-    address public constant OWNER_ADDRESS = 0x9443CF20fc0C1578c12792D8E80cA92DD4CEcc24;
+    address public constant OWNER_ADDRESS =
+        0x9443CF20fc0C1578c12792D8E80cA92DD4CEcc24;
 
     event Minted(address indexed to, uint256 indexed tokenId, string uri);
     event Burned(address indexed to, uint256 indexed tokenId);
@@ -55,7 +57,6 @@ contract CreatorHubServiceManager is ERC721URIStorage, OwnableUpgradeable, ECDSA
         address _stakeRegistry,
         address _rewardsCoordinator,
         address _delegationManager
-
     )
         ECDSAServiceManagerBase(
             _avsDirectory,
@@ -63,7 +64,6 @@ contract CreatorHubServiceManager is ERC721URIStorage, OwnableUpgradeable, ECDSA
             _rewardsCoordinator,
             _delegationManager
         )
-
         ERC721("HelloWorldNFT", "HWNFT")
         OwnableUpgradeable()
     {}
@@ -71,7 +71,9 @@ contract CreatorHubServiceManager is ERC721URIStorage, OwnableUpgradeable, ECDSA
     /* FUNCTIONS */
     // NOTE: this function creates new task, assigns it a taskId
 
-    function createTaskMintAccount(string memory channelID) external returns (CreatorTask memory) {
+    function createTaskMintAccount(
+        string memory channelID
+    ) external returns (CreatorTask memory) {
         CreatorTask memory creatorTask;
         creatorTask.accountAddress = msg.sender;
         creatorTask.channelID = channelID;
@@ -85,7 +87,13 @@ contract CreatorHubServiceManager is ERC721URIStorage, OwnableUpgradeable, ECDSA
         return creatorTask;
     }
 
-    function respondToCreateMintAccountTask(CreatorTask calldata task, uint32 referenceTaskIndex, bytes memory signature, Reclaim.Proof memory proof, string memory tokenURI) external {
+    function respondToCreateMintAccountTask(
+        CreatorTask calldata task,
+        uint32 referenceTaskIndex,
+        bytes memory signature,
+        Reclaim.Proof memory proof,
+        string memory tokenURI
+    ) external {
         require(
             keccak256(abi.encode(task)) == allTaskHashes[referenceTaskIndex],
             "supplied task does not match the one recorded in the contract"
@@ -96,10 +104,18 @@ contract CreatorHubServiceManager is ERC721URIStorage, OwnableUpgradeable, ECDSA
         );
 
         // The message that was signed
-        bytes32 messageHash = keccak256(abi.encodePacked("Hello, ", task.channelID));
+        bytes32 messageHash = keccak256(
+            abi.encodePacked("Hello, ", task.channelID)
+        );
         bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
         bytes4 magicValue = IERC1271Upgradeable.isValidSignature.selector;
-        if (!(magicValue == ECDSAStakeRegistry(stakeRegistry).isValidSignature(ethSignedMessageHash,signature))){
+        if (
+            !(magicValue ==
+                ECDSAStakeRegistry(stakeRegistry).isValidSignature(
+                    ethSignedMessageHash,
+                    signature
+                ))
+        ) {
             revert();
         }
 
@@ -112,15 +128,27 @@ contract CreatorHubServiceManager is ERC721URIStorage, OwnableUpgradeable, ECDSA
         emit CreatorTaskResponded(referenceTaskIndex, task, msg.sender);
     }
 
-    function mintAccount(Reclaim.Proof memory proof, string memory tokenURI, address to) public {
+    function mintAccount(
+        Reclaim.Proof memory proof,
+        string memory tokenURI,
+        address to
+    ) public {
+        require(
+            proof.signedClaim.claim.owner == OWNER_ADDRESS,
+            "Owner is not valid!"
+        );
 
-        require(proof.signedClaim.claim.owner == OWNER_ADDRESS, "Owner is not valid!");
-
-        string memory videoId = Claims.extractFieldFromContext(proof.claimInfo.context, '"channelId":"');
+        string memory videoId = Claims.extractFieldFromContext(
+            proof.claimInfo.context,
+            '"channelId":"'
+        );
         uint256 tokenId = uint256(keccak256(abi.encodePacked(videoId)));
-        
-        if (userChannelID[tokenId]){
-            require(ownerOf(tokenId) == to, "Already minted by another address!");
+
+        if (userChannelID[tokenId]) {
+            require(
+                ownerOf(tokenId) == to,
+                "Already minted by another address!"
+            );
 
             _burn(tokenId);
         }
@@ -130,8 +158,12 @@ contract CreatorHubServiceManager is ERC721URIStorage, OwnableUpgradeable, ECDSA
 
         emit Minted(to, tokenId, tokenURI);
     }
-    
-    function mintNFT(address to, uint256 tokenId, string memory tokenURI) public {
+
+    function mintNFT(
+        address to,
+        uint256 tokenId,
+        string memory tokenURI
+    ) public {
         _safeMint(to, tokenId);
         _setTokenURI(tokenId, tokenURI);
     }
@@ -153,5 +185,4 @@ contract CreatorHubServiceManager is ERC721URIStorage, OwnableUpgradeable, ECDSA
     {
         return ContextUpgradeable._msgData();
     }
-
 }
